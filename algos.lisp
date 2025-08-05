@@ -284,6 +284,31 @@
 (defparameter *square-array* (make-array '(3 3) :initial-contents '((1 2 3) (1 2 3) (2 2 2))))
 (count-equal-rows-columns *square-array*)
 
-;; linked list algorithms
+;; stack and queue algorithms
 
+;; Example 1: 20. Valid Parentheses
+
+;; Given a string s containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid. The string is valid if all open brackets are closed by the same type of closing bracket in the correct order, and each closing bracket closes exactly one open bracket.
+
+;; For example, s = "({})" and s = "(){}[]" are valid, but s = "(]" and s = "({)}" are not valid.
+
+(defun eval-char (ch table)
+  (declare (type character ch))
+  (let ((is-valid t))
+    (if (char= ch (char "()" 1))
+        (if (gethash (char "()" 0) table)
+            (return-from eval-char t)
+            (return-from eval-char nil)))
+    (if (char= ch (char "[]" 1))
+        )
+
+(defun valid-parenth? (input)
+  (declare (type string input))
+  (let ((char-list (coerce input 'list)) is-valid t (seen (make-hash-table)))
+    (loop while (and char-list is-valid) do
+          (let ((ch (pop char-list)))
+            (if (gethash ch seen)
+                (setf is-valid nil)
+                (if ())
+    )))
 

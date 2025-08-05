@@ -292,23 +292,33 @@
 
 ;; For example, s = "({})" and s = "(){}[]" are valid, but s = "(]" and s = "({)}" are not valid.
 
-(defun eval-char (ch table)
+(defun is-left-bracket (input)
+  (declare (type character input))
+  (let ((as-list (cons (char "()" 0) '(#\{ #\[)))) 
+    (if (member input as-list)
+        t
+        nil)))
+
+(defun get-match (ch)
   (declare (type character ch))
-  (let ((is-valid t))
-    (if (char= ch (char "()" 1))
-        (if (gethash (char "()" 0) table)
-            (return-from eval-char t)
-            (return-from eval-char nil)))
-    (if (char= ch (char "[]" 1))
-        )
+  (if (char= ch (char "()" 0)) 
+      (char "()" 1)
+      (if (char= ch #\{)
+          #\}
+          (if (char= ch #\[)
+              #\]))))
 
 (defun valid-parenth? (input)
   (declare (type string input))
-  (let ((char-list (coerce input 'list)) is-valid t (seen (make-hash-table)))
+  (let ((char-list (coerce input 'list)) (is-valid t) (seen nil))
     (loop while (and char-list is-valid) do
           (let ((ch (pop char-list)))
-            (if (gethash ch seen)
-                (setf is-valid nil)
-                (if ())
-    )))
+            (if (is-left-bracket ch)
+                (push ch seen)
+                (if (not (char= ch (get-match (pop seen))))
+                    (setf is-valid nil)))))
+    (if (> (length seen) 0)
+        (setf is-valid nil))
+    is-valid))
 
+(valid-parenth? "{[]{}}")

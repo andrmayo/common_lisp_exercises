@@ -1,4 +1,5 @@
 ;;;; exercises on binary trees and graph structures
+;;;; DFS binary tree exercises
 
 ;;; Example 1: 104. Maximum Depth of Binary Tree
 ;;; Given the root of a binary tree, find the length of the longest path from the root to a leaf.
@@ -33,11 +34,10 @@
   (let ((left-side (car children)) (right-side (if (consp (cdr children)) (cadr children) (cdr children)))) 
     (setf (tree-node-left trnode) (if (consp left-side) (ensure-node (car left-side)) (ensure-node left-side)))
     (setf (tree-node-right trnode) (if (consp right-side) (ensure-node (car right-side)) (ensure-node right-side)))
-    (when (consp left-side) 
-      (add-children (tree-node-left trnode) (cdr left-side)))
+    (when (consp left-side)
+      (add-children (tree-node-left trnode) (cadr left-side)))
     (when (consp right-side)
-      (add-children (tree-node-right trnode) (cdr right-side)))))
-
+      (add-children (tree-node-right trnode) (cadr right-side)))))
 
 (defun max-depth (trnode)
   (declare (type tree-node trnode))
@@ -58,14 +58,165 @@
                  (setf depth (max depth (recurse-depth nd level unexplored))))))
     (values depth)))
 
-(setf *root* (mk-trnode 0))
+(defparameter *root* (mk-trnode 0))
 (add-children *root* '((1 ((3 (7 8)) 4)) 
                        (2 (5 6))))
 (max-depth *root*)
-
 
 ;;; Example 2: 112. Path Sum
 ;; 
 ;; Given the root of a binary tree and an integer targetSum, 
 ;; return true if there exists a path from the root to a leaf such that the sum of the nodes on the path is equal to targetSum, 
 ;; and return false otherwise.
+
+;; note: function below not written to be tail-call optimized
+
+(defun check-branch-sum (rt target)
+  (declare (type tree-node rt) (type number target))
+  (labels (
+           (recurse-nodes-dfs (nd target accum)
+             (progn 
+               (setf accum (+ accum (tree-node-content nd)))
+               (when (eql accum target)
+                   (return-from recurse-nodes-dfs t))
+               (when (and (null (tree-node-left nd)) (null (tree-node-right nd)))
+                 (return-from recurse-nodes-dfs nil))
+               (let ((sum-found-p nil) (left-nd (tree-node-left nd)) (right-nd (tree-node-right nd)))
+                 (when left-nd
+                   (setf sum-found-p (recurse-nodes-dfs left-nd target accum)))
+                 (if (and (null sum-found-p) right-nd) 
+                     (recurse-nodes-dfs right-nd target accum)
+                     sum-found-p)))))
+    (values (recurse-nodes-dfs rt target 0))))
+
+(check-branch-sum *root* 12)
+
+;;; Example 3: 1448. Count Good Nodes in Binary Tree
+
+;; Given the root of a binary tree, find the number of nodes that are good.
+;; A node is good if the path between the root and the node has no nodes with a greater value.
+
+(defun count-good-nodes (rt)
+  (declare (type tree-node rt))
+  (labels ((recurse-nodes (nd last-val depth nd-stack deepest) 
+             (progn 
+               (when (or (null last-val) (>= (tree-node-content nd) last-val))
+                  (progn 
+                    (when (tree-node-right nd)
+                      (push (cons (tree-node-right nd) (tree-node-content nd) (1+ depth)) nd-stack))
+                    (when (tree-node-left nd)
+                      (push (cons (tree-node-left nd) (tree-node-content nd) (1+ depth)) nd-stack))
+                    (setf deepest (max (deepest depth)))))
+               (if nd-stack 
+                  (let ((stack-item (pop nd-stack))) 
+                    (recurse-nodes (car stack-item) (cadr stack-item) (cdr (cdr stack-item)) nd-stack)) 
+                  deepest))))
+    (recurse-nodes rt nil 1 nil 0)))
+
+;;; Example 4: 100. Same Tree
+;; 
+;; Given the roots of two binary trees p and q, check if they are the same tree. 
+;; Two binary trees are the same tree if they are structurally identical and the nodes have the same values.xample 4: 100. Same Tree
+;; 
+;; Given the roots of two binary trees p and q, check if they are the same tree. 
+;; Two binary trees are the same tree if they are structurally identical and the nodes have the same values.
+
+(defun sametree-p (rt1 rt2)
+  (declare (type tree-node rt1) (type tree-node rt2))
+  (labels ((recurse-dfs (rt1 rt2 node-stack1 node-stack2)
+             (let ((rt1-left (tree-node-left rt1)) (rt1-right (tree-node-right rt1)) (rt2-left (tree-node-left rt2)) (rt2-right (tree-node-right rt2)))
+               (when (not (equal (tree-node-content rt1) (tree-node-content rt2)))
+                 (return-from sametree-p nil))
+               (when (and (null rt1-left) rt2-left)
+                 (return-from sametree-p nil))
+               (when (and (null rt1-right) rt2-right)
+                 (return-from sametree-p nil))
+               (when rt1-right
+                 (when (null rt2-right)
+                   (return-from sametree-p nil))
+                 (push rt1-right node-stack1)
+                 (push rt2-right node-stack2))
+               (when rt1-left
+                 (when (null rt2-left)
+                   (return-from sametree-p nil))
+                 (push rt1-left node-stack1)
+                 (push rt2-left node-stack2))
+               (if (and (null node-stack1) (null node-stack2))
+                   (return-from sametree-p t)
+                   (recurse-dfs (pop node-stack1) (pop node-stack2) node-stack1 node-stack2)))))
+           (recurse-dfs rt1 rt2 nil nil)))
+
+
+(defparameter *root1* (mk-trnode 0))
+(add-children *root1* '((1 ((3 (7 8)) 4)) 
+                       (2 (5 6))))
+
+(defparameter *root2* (mk-trnode 0))
+(add-children *root2* '((1 ((3 (7 8)) 4)) 
+                       (2 (5 6))))
+
+(sametree-p *root1* *root2*)
+
+;;; Bonus example: 236. Lowest Common Ancestor of a Binary Tree
+;; 
+;; G9iven the root of a binary tree and two nodes p and q that are in the tree,
+;; return the lowest common ancestor (LCA) of the two nodes.
+;; The LCA is the lowest node in the tree that has both p and q as descendants (note: a node is a descendant of itself).
+
+;; this function is not tail-call optimized; number of calls on callstack is O(m), where m is the deepest part of 
+;; the tree
+(defun lca (rt p q)
+  (declare (type tree-node rt) (type tree-node p) (type tree-node q))
+  (labels ((recurse-nodes (rt p q) 
+             (let ((left (tree-node-left rt)) (right (tree-node-right rt)) (left-ans nil) (right-ans nil))
+               (when (eq rt p)
+                 (return-from recurse-nodes 'p))
+               (when (eq rt q)
+                 (return-from recurse-nodes 'q))
+               (when left 
+                 (setf left-ans (recurse-nodes left p q)))
+               (when right 
+                 (setf right-ans (recurse-nodes right p q)))
+               (if (or (eql left-ans 'p) (eql left-ans 'q))
+                   (if (or (eql right-ans 'p) (eql right-ans 'q))
+                       (return-from lca rt)
+                       left-ans)
+                   (when (or (eql right-ans 'p) (eql right-ans 'q))
+                       right-ans))))) 
+    (if (or (eq rt p) (eq rt q)) 
+        rt 
+        (recurse-nodes rt p q))))
+
+(defparameter *p* (tree-node-left (tree-node-left (tree-node-left *root*))))
+(defparameter *q* (tree-node-right (tree-node-left *root*)))
+(lca *root* *p* *q*)
+
+;;;; BFS binary tree exercises
+
+;; Example 1: 199. Binary Tree Right Side View
+;; 
+;; Given the root of a binary tree, imagine yourself standing on the right side of it.
+;; Return the values of the nodes you can see ordered from top to bottom.
+
+(defun right-side-view (root)
+  (declare (type tree-node root))
+  (let ((stack (list root)))
+    (labels ((bfs (stack ans)
+               (if (null stack)
+                   (reverse ans)
+                   (progn 
+                     (push (car stack) ans)
+                     (bfs (process-layer (reverse stack) nil) ans))))
+             (process-layer (old-stack new-stack) 
+               (if (null old-stack)
+                   new-stack
+                   (let* ((cur-node (pop old-stack)) (left (tree-node-left cur-node)) (right (tree-node-right cur-node))) 
+                     (process-layer 
+                       old-stack
+                       (append (if right (list right) nil) 
+                               (if left (list left) nil) 
+                               new-stack))))))
+      (bfs stack nil))))
+
+(right-side-view *root*)
+

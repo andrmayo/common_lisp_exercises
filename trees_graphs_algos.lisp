@@ -244,3 +244,31 @@
       (get-max-node (list root) nil)))
 
 (rowwise-max-bfs *root*)
+
+;;; Example 1: 938. Range Sum of BST
+;; Given the root node of a binary search tree and two integers low and high, 
+;; return the sum of values of all nodes with a value in the inclusive range [low, high].
+
+(def range-sum-bst (root low high)
+  (declare (type tree-node root) (type number low) (type number high))
+  (labels ((descend (low high stack accum)
+             (if (null stack)
+                 accum 
+                 (let* ((node (pop stack)) (left (tree-node-left node)) (right (tree-node-right node))) 
+                   (when right 
+                     (let ((right-val (tree-node-content right))) 
+                       (when (and (<= right-val high) (>= right-val low)) 
+                         (setf accum (+ accum right-val)) 
+                         (push right stack)))) 
+                   (when left 
+                     (let ((left-val (tree-node-content left))) 
+                       (when (and (<= left-val high) (>= left-val low)) 
+                         (setf accum (+ accum left-val)) 
+                         (push left stack))))))))
+    (descend low high (list root) 0)))
+
+
+;;; Example 2: 530. Minimum Absolute Difference in BST
+;; Given the root of a BST, return the minimum absolute difference 
+;; between the values of any two different nodes in the tree.
+

@@ -249,7 +249,7 @@
 ;; Given the root node of a binary search tree and two integers low and high, 
 ;; return the sum of values of all nodes with a value in the inclusive range [low, high].
 
-(def range-sum-bst (root low high)
+(defun range-sum-bst (root low high)
   (declare (type tree-node root) (type number low) (type number high))
   (labels ((descend (low high stack accum)
              (if (null stack)

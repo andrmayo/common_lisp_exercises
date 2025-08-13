@@ -220,3 +220,27 @@
 
 (right-side-view *root*)
 
+;;; Example 2: 515. Find Largest Value in Each Tree Row
+;; Given the root of a binary tree, return an array of the largest value in each row of the tree.
+
+(defun bfs-helper (old-stack new-stack) 
+  (if (null old-stack) 
+      new-stack 
+      (let* ((cur-node (pop old-stack)) (left (tree-node-left cur-node)) (right (tree-node-right cur-node))) 
+        (bfs-helper 
+          old-stack 
+          (append (if right (list right) nil) 
+                  (if left (list left) nil) 
+                  new-stack)))))
+
+(defun rowwise-max-bfs (root)
+  (declare (type tree-node root))
+  (labels ((get-max-node (stack ans) 
+             (if stack 
+                 (progn 
+                   (push (apply #'max (mapcar #'tree-node-content stack)) ans)
+                   (get-max-node (bfs-helper stack nil) ans))
+                 (reverse ans))))
+      (get-max-node (list root) nil)))
+
+(rowwise-max-bfs *root*)

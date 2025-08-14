@@ -311,3 +311,33 @@
 
 ;;; Example 3: 98. Validate Binary Search Tree
 ;; Given the root of a binary tree, determine if it is a valid BST.
+
+(defun bst-p (root)
+  (declare (type tree-node root))
+  (labels ((recurse-dfs (nd stack smallest largest)
+             (let ((val (tree-node-content nd)) (left (tree-node-left nd)) (right (tree-node-right)))
+               (let ((left-val (if left (tree-node-content left) (1- val))) (right-val (if right (tree-node-content right) (1+ val))))
+                 (when (not (and (< left-val val) (> right-val val))) 
+                   (return-from bst-p nil))
+                 (when (or (and smallest (<= val smallest)) (and largest (>= val largest)))
+                   (return-from bst-p nil))
+                 (when left
+                   (push (list left smallest val) stack))
+                 (when right
+                   (push (cons (list right val) largest)))
+                 (let* ((new-item (pop stack)) (new-node (car new-item)) (new-smallest (second new-item)) (new-largest (third new-item)))
+                   (if (null new-item)
+                       (return-from bst-p t)
+                       (recurse-dfs new-node stack new-smallest new-largest)))))))
+    (recurse-dfs root nil nil nil))
+
+
+
+(third (list 1 2))
+               
+
+
+
+
+
+

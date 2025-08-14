@@ -103,13 +103,13 @@
                (when (or (null last-val) (>= (tree-node-content nd) last-val))
                   (progn 
                     (when (tree-node-right nd)
-                      (push (cons (tree-node-right nd) (tree-node-content nd) (1+ depth)) nd-stack))
+                      (push (cons (list (tree-node-right nd) (tree-node-content nd)) (1+ depth)) nd-stack))
                     (when (tree-node-left nd)
-                      (push (cons (tree-node-left nd) (tree-node-content nd) (1+ depth)) nd-stack))
-                    (setf deepest (max (deepest depth)))))
+                      (push (cons (list (tree-node-left nd) (tree-node-content nd)) (1+ depth)) nd-stack))
+                    (setf deepest (max deepest depth))))
                (if nd-stack 
                   (let ((stack-item (pop nd-stack))) 
-                    (recurse-nodes (car stack-item) (cadr stack-item) (cdr (cdr stack-item)) nd-stack)) 
+                    (recurse-nodes (car stack-item) (cadr stack-item) (cdr (cdr stack-item)) nd-stack deepest)) 
                   deepest))))
     (recurse-nodes rt nil 1 nil 0)))
 
@@ -268,7 +268,46 @@
     (descend low high (list root) 0)))
 
 
+
 ;;; Example 2: 530. Minimum Absolute Difference in BST
 ;; Given the root of a BST, return the minimum absolute difference 
 ;; between the values of any two different nodes in the tree.
 
+(defun dfs-helper (node old-stack new-stack)
+  (declare (type tree-node node) (type list old-stack) (type list new-stack))
+  (let ((left (tree-node-left node)) (right (tree-node-right node)))
+    (when (not (eq left (car old-stack)))
+      (when left
+        (push left old-stack)))
+    (push node old-stack)
+    (when (not (eq right (car new-stack)))
+      (when right
+        (push right old-stack)))
+    (when (eq (car old-stack) node)
+        (push (pop old-stack) new-stack))
+    (if (null old-stack) 
+        new-stack
+        (dfs-helper (car old-stack) (cdr old-stack) new-stack))))
+
+
+(defun get-least-diff-adjac (stack)
+  (labels ((recurse-elts (num-stack prev least-diff)
+             (progn
+                (setf least-diff (min least-diff (abs (- prev (car num-stack)))))
+                (if (null (cdr num-stack))
+                    least-diff
+                    (recurse-elts (cdr num-stack) (car num-stack) least-diff)))))
+    (recurse-elts (cdr stack) (car stack) (abs (- (car stack) (cadr stack))))))
+
+(defun min-abs-diff (root)
+  (declare (type tree-node root))
+  (let ((stack (dfs-helper root nil nil)))
+    (get-least-diff-adjac (mapcar #'tree-node-content stack))))
+
+(defparameter *bst-root* (mk-trnode 9))
+(add-children *bst-root* '((5 (1 7)) 15))
+
+(min-abs-diff *bst-root*)
+
+;;; Example 3: 98. Validate Binary Search Tree
+;; Given the root of a binary tree, determine if it is a valid BST.

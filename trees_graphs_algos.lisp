@@ -315,7 +315,7 @@
 (defun bst-p (root)
   (declare (type tree-node root))
   (labels ((recurse-dfs (nd stack smallest largest)
-             (let ((val (tree-node-content nd)) (left (tree-node-left nd)) (right (tree-node-right)))
+             (let ((val (tree-node-content nd)) (left (tree-node-left nd)) (right (tree-node-right nd)))
                (let ((left-val (if left (tree-node-content left) (1- val))) (right-val (if right (tree-node-content right) (1+ val))))
                  (when (not (and (< left-val val) (> right-val val))) 
                    (return-from bst-p nil))
@@ -324,20 +324,105 @@
                  (when left
                    (push (list left smallest val) stack))
                  (when right
-                   (push (cons (list right val) largest)))
+                   (push (list right val largest) stack))
                  (let* ((new-item (pop stack)) (new-node (car new-item)) (new-smallest (second new-item)) (new-largest (third new-item)))
                    (if (null new-item)
                        (return-from bst-p t)
                        (recurse-dfs new-node stack new-smallest new-largest)))))))
-    (recurse-dfs root nil nil nil))
+    (recurse-dfs root nil nil nil)))
 
 
+;;; Example 1: 547. Number of Provinces
+;; 
+;; There are n cities. A province is a group of directly or indirectly connected cities and no other cities outside of the group. 
+;; You are given an n x n matrix isConnected where isConnected[i][j] = isConnected[j][i] = 1 if the ith city 
+;; and the jth city are directly connected, and isConnected[i][j] = 0 otherwise. Return the total number of provinces.
 
-(third (list 1 2))
-               
+for key being the hash-keys of
 
+(defun num-provinces (isConnected)
+  (declare (type (array integer (* *)) isConnected))
+  (let ((table (make-hash-table))) 
+    (loop for i below (array-dimension isConnected 0) do 
+          (loop for j from (1+ i) below (array-dimension isConnected 1) do 
+                (when (eql (aref isConnected i j) 1) 
+                  (setf (gethash i table) (cons j (gethash i table nil)))
+                  (setf (gethash j table) (cons i (gethash j table nil))))))
+    (labels ((dfs (nd seen table)
+               (loop for i in (gethash nd table) do
+                     (when (null (gethash i seen)) 
+                       (setf (gethash i seen) t)
+                       (dfs i seen table)))))
+      (let ((seen-vals (make-hash-table)) (ans 0))
+        (loop for i below (array-dimension isConnected 0) do 
+              (when (null (gethash i seen-vals)) 
+                 (setf ans (1+ ans)) 
+                 (setf (gethash i seen-vals) t) 
+                 (dfs i seen-vals table)))
+        (values ans)))))
+      
 
+(defparameter *adj-matrix* (make-array '(5 5) :initial-contents '((0 1 0 1 1) (1 0 0 0 0) (0 0 0 0 0) (1 0 0 0 1) (1 0 0 1 0))))
 
+(num-provinces *adj-matrix*)
 
+;;; Example 2: 200. Number of Islands
+;; 
+;; Given an m x n 2D binary grid which represents a map of 1 (land)
+;; and 0 (water), return the number of islands. 
+;; An island is surrounded by water 
+;; and is formed by connecting adjacent land cells horizontally or vertically.
 
+(defun new-island-explore (islands seen stack)
+  (declare (type (array integer (* *)) islands) (type hash-table seen) (type list stack))
+  (let ((coords (pop stack)))
+    (if (null coords) 
+        seen
+        (let ((i (car coords)) (j (cadr coords)))
+          (if (or (< i 0) (< j 0) (>= i (array-dimension islands 0)) (>= j (array-dimension islands 1)))
+              (new-island-explore islands seen stack)
+              (if (eql 0 (aref islands i j))
+                  (new-island-explore islands seen stack)
+                  (progn 
+                    (setf (gethash (list i j) seen) t)
+                    (when (null (gethash (list (1+ i) j) seen)) 
+                      (push (list (1+ i) j) stack))
+                    (when (null (gethash (list (1- i) j) seen)) 
+                      (push (list (1- i) j) stack))
+                    (when (null (gethash (list i (1+ j)) seen)) 
+                      (push (list i (1+ j)) stack))
+                    (when (null (gethash (list i (1- j)) seen)) 
+                      (push (list i (1- j)) stack))
+                    (new-island-explore islands seen stack))))))))
 
+(defun num-islands (islands)
+  (declare (type (array integer (* *)) islands))
+  (let ((seen (make-hash-table :test #'equal)) (m (array-dimension islands 0)) (n (array-dimension islands 1)) (accum 0))
+    (loop for i below m do 
+          (loop for j below n do 
+                (progn 
+                  (if (or (gethash (list i j) seen) (eql (aref islands i j) 0))
+                      accum 
+                      (progn 
+                        (setf accum (1+ accum))
+                        (new-island-explore islands seen (list (list i j))))))))
+    accum))
+
+(defparameter *islands* (make-array '(5 7) 
+                                    :initial-contents 
+                                    '((1 0 0 0 0 0 1)
+                                      (1 1 1 0 0 1 1)
+                                      (1 0 0 0 0 0 0)
+                                      (0 0 1 1 0 0 0)
+                                      (0 0 0 0 0 0 0))))
+
+(num-islands *islands*)
+
+;;; Example 3: 1466. Reorder Routes to Make All Paths Lead to the City Zero
+;; 
+;; There are n cities numbered from 0 to n - 1 and n - 1 roads 
+;; such that there is only one way to travel between two different cities.
+;; Roads are represented by connections where connections[i] = [x, y] 
+;; represents a road from city x to city y. The edges are directed.
+;; You need to swap the direction of some edges so that every city
+;; can reach city 0. Return the minimum number of swaps needed.

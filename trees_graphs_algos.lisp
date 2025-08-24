@@ -426,3 +426,115 @@ for key being the hash-keys of
 ;; represents a road from city x to city y. The edges are directed.
 ;; You need to swap the direction of some edges so that every city
 ;; can reach city 0. Return the minimum number of swaps needed.
+
+(defun reorder-routes (roads)
+  (declare (type cons roads))
+  (labels ((map-edges (connections table)
+             (let ((edge (car connections)))
+               (setf (gethash (car edge) table) (cons (cdr edge) (gethash (car edge) table)))
+               (setf (gethash (cdr edge) table) (cons (car edge) (gethash (cdr edge) table)))
+               (if (null (cdr connections))
+                   table
+                   (map-edges (cdr connections) table))))
+           (reverse-roads (roads table seen stack &optional (accum 0))
+             (let ((city (pop stack)))
+               (if (null city)
+                   accum 
+                   (if (gethash city seen) 
+                       (reverse-roads roads table seen stack accum)
+                       (progn 
+                         (setf (gethash city seen) t)
+                         (loop for neighbour in (gethash city table) do 
+                               (when (null (gethash neighbour seen)) 
+                                 (if (member (cons neighbour city) roads :test #'equal) 
+                                     (push neighbour stack) 
+                                     (progn 
+                                       (setf accum (1+ accum)) 
+                                       (push neighbour stack))))) 
+                         (reverse-roads roads table seen stack accum))))))) 
+    (let ((table (map-edges roads (make-hash-table)))) 
+      (reverse-roads roads table (make-hash-table) (list 0)))))
+
+
+;; answer: '((1 0) (3 1) (2 4) (4 3))
+(defparameter *roads* '((0 . 1) (1 . 3) (2 . 4) (4 . 3)))
+(reorder-routes *roads*)
+
+;;; Example 1: 1091. Shortest Path in Binary Matrix
+;; 
+;; Given an n x n binary matrix grid, return the length of the shortest clear path in the matrix. 
+;; If there is no clear path, return -1. 
+;; A clear path is a path from the top-left cell (0, 0) to the bottom-right cell (n - 1, n - 1) such that all visited cells are 0. 
+;; You may move 8-directionally (up, down, left, right, or diagonally).
+
+(defun valid-clear-p (matrix i j)
+  (declare (type (array integer (* *)) matrix) (type integer i) (type integer j))
+  (and 
+    (>= i 0) 
+    (>= j 0) 
+    (< i (array-dimension matrix 0)) 
+    (< j (array-dimension matrix 1)) 
+    (eql (aref matrix i j) 0)))
+
+(defun add-path-nodes (matrix i j stack path paths seen)
+  (declare (type (array integer (* *)) matrix) (type integer i) (type integer j) (type list stack))
+  (progn 
+    (loop for coords in '((0 . 1) (0 . -1) (1 . 0) (-1 . 0) (1 . 1) (-1 . -1) (1 . -1) (-1 . 1)) do 
+          (let ((k (+ i (car coords))) (l (+ j (cdr coords)))) 
+            (when (and (not (gethash (cons k l) seen)) (valid-clear-p matrix k l)) 
+              (setf (gethash (cons k l) seen) t)
+              (push (cons k l) stack) 
+              (push (+ path 1) paths))))
+    (values stack paths)))
+
+(defun clear-path-bfs (matrix stack paths &optional (seen (make-hash-table :test #'equal)))
+  (let ((coords (pop stack)) (path (pop paths)) (i nil) (j nil))
+    (if (null coords)
+        (return-from clear-path-bfs -1)
+        (setf 
+          i (car coords)
+          j (cdr coords)))
+    (if (and (eql i (1- (array-dimension matrix 0))) (eql j (1- (array-dimension matrix 1))))
+        (if (eql (aref matrix i j) 0)
+            path 
+            -1)
+         (progn 
+          (multiple-value-setq (stack paths) (add-path-nodes matrix i j stack path paths seen)) 
+          (clear-path-bfs matrix stack paths seen)))))
+
+(defun get-shortest-clear-path (matrix) 
+  (declare (type (array integer (* *)) matrix))
+  (if (eql 1 (aref matrix 0 0))
+      -1 
+      (let ((stack (list (cons 0 0))) (paths (list 1))) 
+        (clear-path-bfs matrix stack paths))))
+
+
+(defparameter *clear-path* (make-array '(5 5) :initial-contents 
+                                       '((0 1 1 0 0)
+                                         (1 0 0 1 0)
+                                         (0 1 1 1 0)
+                                         (0 1 1 0 0)
+                                         (1 0 0 1 0))))
+
+(get-shortest-clear-path *clear-path*)
+
+;;; Example 2: 863. All Nodes Distance K in Binary Tree
+;; 
+;; Given the root of a binary tree, a target node target in the tree, and an integer k, 
+;; return an array of the values of all nodes that have a distance k from the target node.
+
+;;; Example 4: 1293. Shortest Path in a Grid with Obstacles Elimination
+;; 
+;; You are given an m x n integer matrix grid where each cell is either 0 (empty) or 1 (obstacle). 
+;; You can move up, down, left, or right from and to an empty cell in one step. 
+;; Return the minimum number of steps to walk from the upper left corner to the lower right corner 
+;; given that you can eliminate at most k obstacles. If it is not possible, return -1.
+
+;;; Example 5: 1129. Shortest Path with Alternating Colors
+;; 
+;; You are given a directed graph with n nodes labeled from 0 to n - 1. Edges are red or blue in this graph. 
+;; You are given redEdges and blueEdges, where redEdges[i] and blueEdges[i] both have the format [x, y] indicating an edge from x to y in the respective color. 
+;; Return an array ans of length n, where answer[i] is the length of the shortest path from 0 to i where edge colors alternate, or -1 if no path exists.
+
+

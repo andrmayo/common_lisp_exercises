@@ -338,8 +338,6 @@
 ;; You are given an n x n matrix isConnected where isConnected[i][j] = isConnected[j][i] = 1 if the ith city 
 ;; and the jth city are directly connected, and isConnected[i][j] = 0 otherwise. Return the total number of provinces.
 
-for key being the hash-keys of
-
 (defun num-provinces (isConnected)
   (declare (type (array integer (* *)) isConnected))
   (let ((table (make-hash-table))) 
@@ -519,10 +517,111 @@ for key being the hash-keys of
 
 (get-shortest-clear-path *clear-path*)
 
+;;; copying over binary tree node code for convenience
+
+(defstruct (tree-node (:constructor make-tree-node (content left right)))
+  (content nil)
+  (left nil :type (or null tree-node))
+  (right nil :type (or null tree-node)))
+
+(defun mk-trnode (content &key left right)
+  (let ((left-node nil) (right-node nil))
+    (if (typep left 'tree-node)
+        (setf left-node left)
+        (setf left-node (make-tree-node left nil nil)))
+    (if (typep right 'tree-node)
+        (setf right-node right)
+        (setf right-node (make-tree-node right nil nil))) 
+    (let ((trn (make-tree-node content left-node right-node))) 
+      (values trn))))
+
+;; helper function to ensure object is a tree node
+(declaim (inline ensure-node))
+(defun ensure-node (node-or-content)
+  (if (typep node-or-content 'tree-node)
+      node-or-content
+      (make-tree-node node-or-content nil nil)))
+
+;; children are passed in as a list with the format '(left-child right-child)
+;; for further descendents, pass '((left-child (descendents)) (right-child (descendents))) 
+(defun add-children (trnode children)
+  (declare (type tree-node trnode) (type list children))
+  (let ((left-side (car children)) (right-side (if (consp (cdr children)) (cadr children) (cdr children)))) 
+    (setf (tree-node-left trnode) (if (consp left-side) (ensure-node (car left-side)) (ensure-node left-side)))
+    (setf (tree-node-right trnode) (if (consp right-side) (ensure-node (car right-side)) (ensure-node right-side)))
+    (when (consp left-side)
+      (add-children (tree-node-left trnode) (cadr left-side)))
+    (when (consp right-side)
+      (add-children (tree-node-right trnode) (cadr right-side)))))
+
+(defparameter *root* (mk-trnode 0))
+(add-children *root* '((1 ((3 (7 8)) 4)) 
+                       (2 (5 6))))
 ;;; Example 2: 863. All Nodes Distance K in Binary Tree
 ;; 
 ;; Given the root of a binary tree, a target node target in the tree, and an integer k, 
 ;; return an array of the values of all nodes that have a distance k from the target node.
+ 
+(defun k-process-layer (node-stack target parents &optional (new-stack nil))
+  (declare (type list node-stack) (type tree-node target) (type hash-table parents) (type list new-stack))
+  (let ((cur-node (pop node-stack)))
+    (if (null cur-node)
+        new-stack 
+        (let ((left (tree-node-left cur-node)) (right (tree-node-right cur-node)))
+          (when left 
+            (setf (gethash left parents) cur-node))
+          (when right 
+            (setf (gethash right parents) cur-node))
+          (when (eq left target)
+            (return-from k-process-layer left))
+          (when (eq right target)
+            (return-from k-process-layer right))
+          (when right
+            (push right new-stack))
+          (when left 
+            (push left new-stack))
+          (k-process-layer node-stack target parents new-stack)))))
+
+(defun k-recurse-layers (node-stack target parents)
+  (let ((next-layer (k-process-layer node-stack target parents)))
+    (if (typep next-layer 'tree-node)
+        next-layer
+        (if (null next-layer)
+            nil 
+            (k-recurse-layers next-layer target parents)))))
+
+(defun k-get-nodes (stack-by-level k parents seen ans)
+  (declare (type list stack-by-level) (type integer k) (type hash-table parents) (type hash-table seen) (type list ans))
+  (let* ((cur-item (pop stack-by-level)) (cur-node (if cur-item (car cur-item) nil)) (cur-k (if cur-item (cdr cur-item) nil)))
+    (if (null cur-item)
+        ans 
+        (if (> cur-k k)
+            (k-get-nodes stack-by-level k parents seen ans)
+            (let ((left (tree-node-left cur-node)) (right (tree-node-right cur-node)) (parent (gethash cur-node parents)))
+              (push cur-node ans)
+              (when (and right (not (gethash right seen)))
+                (push (cons right (1+ cur-k)) stack-by-level)
+                (setf (gethash right seen) t))
+              (when (and left (not (gethash left seen))) 
+                (push (cons left (1+ cur-k)) stack-by-level)
+                (setf (gethash left seen) t))
+              (when (and parent (not (gethash parent seen)))
+                (push (cons parent (1+ cur-k)) stack-by-level)
+                (setf (gethash parent seen) t))
+              (k-get-nodes stack-by-level k parents seen ans))))))
+                
+
+(defun k-bfs (root target k)
+  (declare (type tree-node root) (type tree-node target) (type integer k))
+  (let ((parents (make-hash-table)) (dest nil) (seen (make-hash-table)))
+    (setf dest (k-recurse-layers (list root) target parents))
+    (when (null dest)
+      (return-from k-bfs nil))
+    (setf (gethash dest seen) t)
+    (k-get-nodes (list (cons dest 0)) k parents seen nil)))
+
+(defparameter *target-node* (tree-node-left (tree-node-left *root*)))
+(k-bfs *root* *target-node* 2)
 
 ;;; Example 4: 1293. Shortest Path in a Grid with Obstacles Elimination
 ;; 
@@ -531,10 +630,131 @@ for key being the hash-keys of
 ;; Return the minimum number of steps to walk from the upper left corner to the lower right corner 
 ;; given that you can eliminate at most k obstacles. If it is not possible, return -1.
 
+(defun valid-coords-p (coords matrix seen)
+  (if (gethash coords seen)
+      nil 
+      (let ((i (car coords)) (j (cdr coords)))
+        (if (or (< i 0) (< j 0) (>= i (array-dimension matrix 0)) (>= j (array-dimension matrix 1)))
+            nil 
+            t))))
+
+(defun process-cell-kmap (coords matrix l k k-map path seen)
+  (declare (type list coords) (type (array integer (* *)) matrix) (type integer l) (type integer k) (type hash-table k-map) (type list path)) ; coords is dotted list
+  (loop for step in (list (cons 1 0) (cons -1 0) (cons 0 -1) (cons 0 1)) do 
+        (let ((i (+ (car coords) (car step))) (j (+ (cdr coords) (cdr step))))
+          (when (and (eql i (1- (array-dimension matrix 0))) (eql j (1- (array-dimension matrix 1))))
+            (if (eql (aref matrix i j) 1)
+                (return-from process-cell-kmap -1)
+                (return-from process-cell-kmap (cons (cons i j) path))))
+          (when (valid-coords-p (cons i j) matrix seen) 
+            (setf (gethash coords seen) t) 
+            (if (eql (aref matrix i j) 0) 
+                (setf (gethash l k-map) (cons (cons (cons i j) path) (gethash l k-map))) 
+                (when (< l k) (setf (gethash (1+ l) k-map) (cons (cons (cons i j) path) (gethash (1+ l) k-map))))))))
+  l)
+
+(defun recurse-cells (matrix l k k-map seen)
+  (declare (type (array integer (* *)) matrix) (type integer l) (type integer k) (type hash-table k-map) (type hash-table seen))
+  (let ((path (pop (gethash l k-map))))
+    (if (null path)
+        (if (< l k)
+            (recurse-cells matrix (1+ l) k k-map seen)
+            -1) 
+        (let ((output (process-cell-kmap (car path) matrix l k k-map path seen))) 
+          (if (eql output -1) 
+              -1 
+              (if (typep output 'cons) 
+                  (1- (length output))
+                  (recurse-cells matrix output k k-map seen)))))))
+
+         ; process all paths with obstabcle number l before calling proceed-cells with (1+ l)
+
+(defun nav-obstacles (matrix k)
+  (declare (type (array integer (* *)) matrix) (type integer k))
+  (let ((k-map (make-hash-table :test #'equal)) (seen (make-hash-table :test #'equal)))
+    (setf (gethash 0 k-map) (list (list (cons 0 0))))
+    (setf (gethash (cons 0 0) seen) t)
+    (recurse-cells matrix 0 k k-map seen)))
+
+(defparameter *k-obstacles* 
+  (make-array '(5 6) 
+              :initial-contents '((0 1 0 0 0 0)
+                                  (1 1 0 1 1 1)
+                                  (1 1 1 1 1 1)
+                                  (0 1 0 1 1 1)
+                                  (1 0 0 0 0 0))))
+
+(nav-obstacles *k-obstacles* 2)
+
+
 ;;; Example 5: 1129. Shortest Path with Alternating Colors
 ;; 
 ;; You are given a directed graph with n nodes labeled from 0 to n - 1. Edges are red or blue in this graph. 
 ;; You are given redEdges and blueEdges, where redEdges[i] and blueEdges[i] both have the format [x, y] indicating an edge from x to y in the respective color. 
 ;; Return an array ans of length n, where answer[i] is the length of the shortest path from 0 to i where edge colors alternate, or -1 if no path exists.
 
+;; map red to 0 and blue to 1 
+;; f(x) = 1 - x gives the alternating colour
+
+(defun add-edge-type (edges type-prefix edge-map)
+  (declare (type hash-table edge-map))
+  (if (null edges)
+      edge-map
+      (let* ((edge (car edges)) (parent (car edge)) (child (cdr edge)) (key (cons type-prefix parent))) 
+        (setf (gethash key edge-map) (cons child (gethash key edge-map))) 
+        (add-edge-type (cdr edges) type-prefix edge-map))))
+
+;; for a given starting path, starting colour to look for, and target node, 
+;; this finds the length of the shortest path to node target, if there is one, and the path,
+;; otherwise returns -1 and nil
+(defun recur-alt (paths target colour edge-map &optional (seen (make-hash-table))) ; colour is colour of edge we're looking for
+  (declare (type list paths) (type fixnum target colour) (type hash-table edge-map seen))
+  (when (null paths) 
+    (return-from recur-alt (values -1 nil)))
+  (let ((new-paths nil))
+    (loop while paths do 
+          (let* ((path (pop paths)) (linked-nodes (gethash (cons colour (car path)) edge-map)))
+            (loop for node in linked-nodes do 
+                  (if (eql node target) 
+                      (return-from recur-alt (values (1+ (length path)) (cons node path)))
+                      (when (null (gethash node seen)) 
+                        (setf (gethash node seen) t) 
+                        (push (cons node path) new-paths))))))
+    (recur-alt new-paths target (- 1 colour) edge-map seen)))
+
+(defun shortest-alt-i-path (edge-map i)
+  (declare (type hash-table edge-map) (type fixnum i))
+  (when (eql i 0)
+    (return-from shortest-alt-i-path (values 1 (list 0))))
+  (let ((red-paths (list (list 0))) (blue-paths (list (list 0))))
+    (multiple-value-bind (red-path-len red-path) (recur-alt red-paths i 0 edge-map)
+      (multiple-value-bind (blue-path-len blue-path) (recur-alt blue-paths i 1 edge-map)
+        (when (eql red-path-len -1)
+          (if (eql blue-path-len -1)
+              (return-from shortest-alt-i-path (values -1 nil))
+              (return-from shortest-alt-i-path (values blue-path-len blue-path))))
+        (when (eql blue-path-len -1)
+          (return-from shortest-alt-i-path (values red-path-len red-path)))
+        (if (<= red-path-len blue-path-len)
+            (values red-path-len red-path)
+            (values blue-path-len blue-path))))))
+
+;; red-edges and blue-edges are lists with elements of format (x . y)
+;; n is the number of nodes, where nodes are labelled over interval [0 ... n)
+;; returns a list of lengths of shortest paths
+(defun shortest-alt-paths (red-edges blue-edges n)
+  (declare (type list red-edges blue-edges) (type fixnum n))
+  (let ((edge-map (make-hash-table :test #'equal)) (ans nil))
+    (setf edge-map (add-edge-type red-edges 0 edge-map)) ; red are 0
+    (setf edge-map (add-edge-type blue-edges 1 edge-map)) ; blue are 1
+    (setf *edge-map* edge-map)
+    (loop for i below n do 
+          (push (shortest-alt-i-path edge-map i) ans))
+    (reverse ans)))
+
+(defparameter *red-edges* (list (cons 0 1) (cons 2 3) (cons 4 5)))
+(defparameter *blue-edges* (list (cons 1 2) (cons 3 4) (cons 5 6)))
+(defparameter *n* 7)
+;; should return (1 2 3 4 5 6 7)
+(shortest-alt-paths *red-edges* *blue-edges* *n*)
 
